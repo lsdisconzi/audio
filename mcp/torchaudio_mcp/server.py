@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import torch
 import torchaudio
@@ -61,7 +61,7 @@ def transcription_healthcheck() -> Dict[str, str]:
 
 
 @mcp.tool()
-def transcription_audio_info(path: str) -> Dict[str, float]:
+def transcription_audio_info(path: str) -> Dict[str, Any]:
     """Inspect an audio file and return metadata/stats for transcription flows."""
     target = _as_abs_path(path)
     if not target.exists():
@@ -74,7 +74,7 @@ def transcription_audio_info(path: str) -> Dict[str, float]:
 
 
 @mcp.tool()
-def transcription_resample_audio(input_path: str, output_path: str, target_sample_rate: int) -> Dict[str, float]:
+def transcription_resample_audio(input_path: str, output_path: str, target_sample_rate: int) -> Dict[str, Any]:
     """Resample an audio file and write the output to a new path."""
     source = _as_abs_path(input_path)
     dest = _as_abs_path(output_path)
@@ -92,6 +92,53 @@ def transcription_resample_audio(input_path: str, output_path: str, target_sampl
     out = _audio_basic_stats(waveform, target_sample_rate)
     out["input_path"] = str(source)
     out["output_path"] = str(dest)
+    return out
+
+
+@mcp.tool()
+def transcription_slice_audio(
+    input_path: str,
+    output_path: str,
+    start_sec: float,
+    end_sec: float,
+) -> Dict[str, Any]:
+    """Slice an audio file to [start_sec, end_sec] and write the output to a new path.
+
+    Returns basic stats for the sliced waveform plus input_path/output_path.
+    """
+    source = _as_abs_path(input_path)
+    dest = _as_abs_path(output_path)
+
+    if not source.exists():
+        raise FileNotFoundError(f"Input audio file not found: {source}")
+    if end_sec <= start_sec:
+        raise ValueError(
+            f"end_sec ({end_sec}) must be greater than start_sec ({start_sec})"
+        )
+    if start_sec < 0:
+        raise ValueError(f"start_sec must be >= 0 (got {start_sec})")
+
+    waveform, sample_rate = torchaudio.load(str(source))
+    total_frames = waveform.shape[1]
+    duration_sec = total_frames / sample_rate if sample_rate else 0.0
+    if start_sec >= duration_sec:
+        raise ValueError(
+            f"start_sec ({start_sec}) is past file duration ({duration_sec:.3f}s)"
+        )
+
+    end_clamped = min(end_sec, duration_sec)
+    start_frame = int(start_sec * sample_rate)
+    end_frame = int(end_clamped * sample_rate)
+    sliced = waveform[:, start_frame:end_frame]
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    torchaudio.save(str(dest), sliced, sample_rate)
+
+    out = _audio_basic_stats(sliced, sample_rate)
+    out["input_path"] = str(source)
+    out["output_path"] = str(dest)
+    out["start_sec"] = float(start_sec)
+    out["end_sec"] = float(end_clamped)
     return out
 
 
