@@ -19,19 +19,30 @@ MCP_HOST="${MCP_HOST:-127.0.0.1}"
 MCP_PORT="${MCP_PORT:-8765}"
 
 PYTHON_API="$SCRIPT_DIR/.venv/bin/python"
-UVICORN_BIN="$SCRIPT_DIR/.venv/bin/uvicorn"
+UVICORN_BIN=""
 if [[ -x "$SCRIPT_DIR/.venv-mcp/bin/python" ]]; then
   PYTHON_MCP="$SCRIPT_DIR/.venv-mcp/bin/python"
 else
   PYTHON_MCP="$SCRIPT_DIR/.venv/bin/python"
 fi
 
+if [[ -x "$SCRIPT_DIR/.venv/bin/uvicorn" ]]; then
+  UVICORN_BIN="$SCRIPT_DIR/.venv/bin/uvicorn"
+elif [[ -x "$SCRIPT_DIR/.venv-mcp/bin/uvicorn" ]]; then
+  UVICORN_BIN="$SCRIPT_DIR/.venv-mcp/bin/uvicorn"
+fi
+
 LOG_DIR="$SCRIPT_DIR/.logs"
 RUN_DIR="$SCRIPT_DIR/.run"
 mkdir -p "$LOG_DIR" "$RUN_DIR"
 
-if [[ ! -x "$PYTHON_API" || ! -x "$UVICORN_BIN" ]]; then
+if [[ ! -x "$PYTHON_API" ]]; then
   echo "Missing project environment in $SCRIPT_DIR/.venv" >&2
+  exit 1
+fi
+
+if [[ -z "$UVICORN_BIN" ]] && ! "$PYTHON_API" -c "import uvicorn" >/dev/null 2>&1; then
+  echo "Missing uvicorn for audio webapp (.venv/.venv-mcp)" >&2
   exit 1
 fi
 
@@ -61,8 +72,13 @@ start_bg() {
 }
 
 echo "Starting audio webapp API on ${HOST}:${PORT}"
-start_bg "audio-api" "$RUN_DIR/audio-api.pid" "$LOG_DIR/api.log" \
-  env PYTHONUNBUFFERED=1 "$UVICORN_BIN" webapp.server:app --host "$HOST" --port "$PORT"
+if [[ -n "$UVICORN_BIN" ]]; then
+  start_bg "audio-api" "$RUN_DIR/audio-api.pid" "$LOG_DIR/api.log" \
+    env PYTHONUNBUFFERED=1 "$UVICORN_BIN" webapp.server:app --host "$HOST" --port "$PORT"
+else
+  start_bg "audio-api" "$RUN_DIR/audio-api.pid" "$LOG_DIR/api.log" \
+    env PYTHONUNBUFFERED=1 "$PYTHON_API" -m uvicorn webapp.server:app --host "$HOST" --port "$PORT"
+fi
 
 echo "Starting audio MCP server (${MCP_TRANSPORT}) on ${MCP_HOST}:${MCP_PORT}"
 start_bg "audio-mcp" "$RUN_DIR/audio-mcp.pid" "$LOG_DIR/mcp.log" \
