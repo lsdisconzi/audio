@@ -10,6 +10,8 @@ if [[ -f "$SCRIPT_DIR/.env" ]]; then
   set +a
 fi
 
+cd "$SCRIPT_DIR"
+
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8777}"
 APP_URL="${APP_URL:-http://127.0.0.1:${PORT}/}"
