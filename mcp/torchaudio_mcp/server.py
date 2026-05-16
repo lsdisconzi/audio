@@ -15,9 +15,22 @@ from typing import Any, Dict, List, Literal, Optional
 import torch
 import torchaudio
 from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 
 mcp = FastMCP("torchaudio-tools")
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> JSONResponse:
+    """Health check endpoint for VPS connectivity tests."""
+    return JSONResponse({
+        "status": "ok",
+        "service": "torchaudio-tools",
+        "torch": torch.__version__,
+        "torchaudio": torchaudio.__version__,
+    })
 
 
 def _as_abs_path(path: str) -> Path:

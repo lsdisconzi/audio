@@ -17,7 +17,7 @@ PORT="${PORT:-8777}"
 APP_URL="${APP_URL:-http://127.0.0.1:${PORT}/}"
 
 MCP_TRANSPORT="${MCP_TRANSPORT:-streamable-http}"
-MCP_HOST="${MCP_HOST:-127.0.0.1}"
+MCP_HOST="${MCP_HOST:-0.0.0.0}"
 MCP_PORT="${MCP_PORT:-8765}"
 
 PYTHON_API="$SCRIPT_DIR/.venv/bin/python"
